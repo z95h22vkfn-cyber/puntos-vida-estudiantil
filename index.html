@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Puntos Estudiantiles</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<style>
+:root{--p:#173f5f;--a:#f4b942;--bg:#f4f7fb;--card:#fff;--muted:#64748b;--ok:#16865b;--danger:#b42318}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);font-family:system-ui,-apple-system,Segoe UI,sans-serif;color:#17212b}
+header{padding:30px 18px;text-align:center;color:white;background:linear-gradient(135deg,#173f5f,#0e7490)}
+header h1{margin:0 0 6px}.wrap{max-width:1050px;margin:24px auto;padding:0 16px}.card{background:var(--card);border-radius:18px;padding:24px;margin-bottom:18px;box-shadow:0 8px 28px #0f172a10}
+h2{color:var(--p)}label{font-weight:700;display:block;margin:12px 0 6px}input{width:100%;padding:13px;border:1px solid #d5dce5;border-radius:10px;font-size:16px}
+button{padding:12px 17px;border:0;border-radius:10px;font-weight:800;cursor:pointer}.primary{background:var(--p);color:#fff}.gold{background:var(--a)}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:18px}.center{text-align:center}.dots{display:flex;justify-content:center;gap:9px;margin:18px}.dot{width:38px;height:38px;border-radius:50%;border:2px solid #cbd5e1}.dot.on{background:var(--a);border-color:#d99b18}
+.notice{padding:14px;border-radius:12px;margin-top:15px}.ok{background:#e8f7f0;color:#12623f}.warn{background:#fff6db;color:#755700}.err{background:#fdecea;color:var(--danger)}
+.small{font-size:13px;color:var(--muted)}table{width:100%;border-collapse:collapse}th,td{padding:11px;border-bottom:1px solid #e8edf2;text-align:left}th{font-size:12px;color:var(--muted)}
+.tabs{display:flex;gap:8px;margin-bottom:18px}.tabs button{background:#e8eef4;color:var(--p)}.tabs button.active{background:var(--p);color:#fff}.hidden{display:none}.stat{font-size:34px;font-weight:900;color:var(--p)}
+</style>
+</head>
+<body>
+<header><h1>⭐ Puntos Estudiantiles</h1><div>Acumula 5 puntos y reclama tu premio en Vida Estudiantil</div></header>
+<div class="wrap">
+  <div class="tabs">
+    <button class="active" id="tabStudent" onclick="show('student')">Registrar punto</button>
+    <button id="tabAdmin" onclick="show('admin')">Vida Estudiantil</button>
+  </div>
+
+  <section id="student">
+    <div class="grid">
+      <div class="card">
+        <h2>Registrar mi entrada</h2>
+        <p class="small">Ingresa tu código estudiantil y nombre. Cada evento válido suma 1 punto.</p>
+        <label>Código estudiantil</label><input id="sid" placeholder="Ej. 2026-00125">
+        <label>Nombre completo</label><input id="sname" placeholder="Nombre y apellido">
+        <button class="primary" style="width:100%;margin-top:17px" onclick="register()">Registrar punto</button>
+        <div id="msg"></div>
+      </div>
+      <div class="card center">
+        <h2>Mis puntos</h2><div class="dots" id="dots"></div>
+        <div id="summary" class="small">Después de registrar podrás ver tu progreso.</div>
+        <div id="reward" class="notice ok hidden"><b>🎉 ¡Felicidades!</b><br>Has acumulado 5 puntos. Dirígete a <b>Vida Estudiantil</b> para reclamar tu premio.</div>
+      </div>
+    </div>
+  </section>
+
+  <section id="admin" class="hidden">
+    <div id="login" class="card">
+      <h2>Acceso de Vida Estudiantil</h2>
+      <label>Correo</label><input id="email" type="email">
+      <label>Contraseña</label><input id="password" type="password">
+      <button class="primary" style="margin-top:16px" onclick="login()">Entrar</button>
+      <div id="loginMsg"></div>
+    </div>
+    <div id="dashboard" class="hidden">
+      <div class="grid">
+        <div class="card"><div class="small">Estudiantes</div><div class="stat" id="st"></div></div>
+        <div class="card"><div class="small">Puntos</div><div class="stat" id="pt"></div></div>
+        <div class="card"><div class="small">Premios</div><div class="stat" id="wn"></div></div>
+      </div>
+      <div class="card">
+        <button onclick="logout()" style="float:right">Salir</button><h2>Estudiantes</h2>
+        <div style="overflow:auto"><table><thead><tr><th>Nombre</th><th>Código</th><th>Puntos</th><th>Estado</th></tr></thead><tbody id="rows"></tbody></table></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="card center">
+    <h2>QR del programa</h2>
+    <p class="small">Este QR se genera con la URL pública de esta página. Después de publicar el sitio, el mismo QR podrá imprimirse.</p>
+    <div id="qr"></div><div id="url" class="small"></div>
+  </section>
+</div>
+
+<script>
+const SUPABASE_URL="REEMPLAZA_CON_TU_SUPABASE_URL";
+const SUPABASE_KEY="REEMPLAZA_CON_TU_SUPABASE_PUBLISHABLE_KEY";
+const ready=!SUPABASE_URL.includes("REEMPLAZA_")&&!SUPABASE_KEY.includes("REEMPLAZA_");
+const db=ready?window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY):null;
+
+function show(id){
+  document.getElementById("student").classList.toggle("hidden",id!=="student");
+  document.getElementById("admin").classList.toggle("hidden",id!=="admin");
+  document.getElementById("tabStudent").classList.toggle("active",id==="student");
+  document.getElementById("tabAdmin").classList.toggle("active",id==="admin");
+}
+function dots(n){let e=document.getElementById("dots");e.innerHTML="";for(let i=1;i<=5;i++){let d=document.createElement("div");d.className="dot "+(i<=n?"on":"");e.appendChild(d)}}
+function message(t,c){document.getElementById("msg").innerHTML=`<div class="notice ${c}">${t}</div>`}
+async function register(){
+ if(!db){message("La web todavía no está conectada a Supabase. Completa la configuración indicada en README.","warn");return}
+ const sid=document.getElementById("sid").value.trim(), name=document.getElementById("sname").value.trim();
+ if(!sid||!name){message("Completa código y nombre.","warn");return}
+ const eventId=new URLSearchParams(location.search).get("evento")||"general";
+ const {data,error}=await db.rpc("registrar_punto",{p_codigo:sid,p_nombre:name,p_evento:eventId});
+ if(error){message("No se pudo registrar el punto: "+escapeHtml(error.message),"err");return}
+ const r=data?.[0]||data;
+ dots(Math.min(Number(r.puntos||0),5));
+ document.getElementById("summary").innerHTML=`<b>${escapeHtml(name)}</b><br>${r.puntos}/5 puntos`;
+ if(Number(r.puntos)>=5){document.getElementById("reward").classList.remove("hidden");message("🎉 Punto registrado. Ya completaste los 5 puntos.","ok")}
+ else {document.getElementById("reward").classList.add("hidden");message("✅ Punto registrado correctamente.","ok")}
+}
+async function login(){
+ if(!db)return;
+ const email=document.getElementById("email").value,password=document.getElementById("password").value;
+ const {error}=await db.auth.signInWithPassword({email,password});
+ document.getElementById("loginMsg").innerHTML=error?`<div class="notice err">${escapeHtml(error.message)}</div>`:"";
+ if(!error)loadDashboard();
+}
+async function logout(){await db.auth.signOut();document.getElementById("dashboard").classList.add("hidden");document.getElementById("login").classList.remove("hidden")}
+async function loadDashboard(){
+ const {data,error}=await db.from("estudiantes").select("codigo,nombre,puntos").order("puntos",{ascending:false});
+ if(error){document.getElementById("loginMsg").innerHTML=`<div class="notice err">${escapeHtml(error.message)}</div>`;return}
+ document.getElementById("login").classList.add("hidden");document.getElementById("dashboard").classList.remove("hidden");
+ document.getElementById("st").textContent=data.length;document.getElementById("pt").textContent=data.reduce((a,x)=>a+Number(x.puntos),0);document.getElementById("wn").textContent=data.filter(x=>x.puntos>=5).length;
+ document.getElementById("rows").innerHTML=data.map(x=>`<tr><td>${escapeHtml(x.nombre)}</td><td>${escapeHtml(x.codigo)}</td><td>${x.puntos}/5</td><td>${x.puntos>=5?"🏆 Premio":"En progreso"}</td></tr>`).join("");
+}
+function escapeHtml(s){return String(s).replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[m]))}
+const pageUrl=location.href.split("#")[0];document.getElementById("url").textContent=pageUrl;
+if(window.QRCode)new QRCode(document.getElementById("qr"),{text:pageUrl,width:190,height:190});
+dots(0);
+if(ready) db.auth.getSession().then(({data})=>{if(data.session)loadDashboard()});
+</script>
+</body></html>
